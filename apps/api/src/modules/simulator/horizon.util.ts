@@ -37,14 +37,73 @@ export function parseAssetParams(assetString: string): ParsedAsset {
   return { type, code, issuer };
 }
 
+const MAX_ERROR_DETAIL_LENGTH = 300;
+
+function normalizeDetail(detail: string): string {
+  const normalized = detail.replace(/\s+/g, ' ').trim();
+  return normalized.length > MAX_ERROR_DETAIL_LENGTH
+    ? `${normalized.slice(0, MAX_ERROR_DETAIL_LENGTH)}…`
+    : normalized;
+}
+
+function extractErrorDetail(body: string): string {
+  const trimmed = body.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') {
+        const record = parsed as Record<string, unknown>;
+        const candidate = record.detail ?? record.message ?? record.error;
+        if (typeof candidate === 'string') return normalizeDetail(candidate);
+        if (Array.isArray(candidate)) {
+          return normalizeDetail(candidate.filter((item) => typeof item === 'string').join(', '));
+        }
+        if (candidate && typeof candidate === 'object') {
+          return normalizeDetail(JSON.stringify(candidate));
+        }
+      }
+      return normalizeDetail(trimmed);
+    } catch {
+      return normalizeDetail(trimmed);
+    }
+  }
+
+  return normalizeDetail(trimmed);
+}
+
+function horizonStatus(response: Response): string {
+  return typeof response.status === 'number' ? String(response.status) : 'unknown';
+}
+
+function horizonError(message: string, upstreamStatus: number | undefined): BadRequestException {
+  return Object.assign(new BadRequestException(message), { upstreamStatus });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchFromHorizon(url: string): Promise<any> {
   const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  const status = horizonStatus(response);
+
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new BadRequestException(
-      `Horizon error (${response.status}): ${body || response.statusText}`,
-    );
+    let body = '';
+    if (typeof response.text === 'function') {
+      try {
+        body = await response.text();
+      } catch {
+        body = '';
+      }
+    }
+    const detail =
+      extractErrorDetail(body) ||
+      (typeof response.statusText === 'string' ? response.statusText.trim() : '');
+    throw horizonError(`Horizon error (${status}): ${detail || `HTTP ${status}`}`, response.status);
   }
-  return response.json();
+
+  try {
+    return await response.json();
+  } catch {
+    throw horizonError(`Horizon returned a non-JSON response (HTTP ${status})`, response.status);
+  }
 }

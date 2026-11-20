@@ -183,6 +183,19 @@ describe('OrderbookService', () => {
         BadRequestException,
       );
     });
+
+    it('keeps the Horizon status when the order book error body is not JSON', async () => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        text: async () => '<html>temporarily unavailable</html>',
+      });
+
+      await expect(service.getOrderbook('XLM', 'USDC:ISSUER', 'testnet')).rejects.toThrow(
+        'Horizon error (503): <html> temporarily unavailable</html>',
+      );
+    });
   });
 
   describe('getHistory', () => {

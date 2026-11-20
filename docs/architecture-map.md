@@ -181,6 +181,27 @@ All API error responses implement a uniform structure:
 }
 ```
 
+### 4.6 Horizon Upstream Error Context (Order Book)
+
+`fetchFromHorizon` (`apps/api/src/modules/simulator/horizon.util.ts`) is the shared
+entry point for order book, trade, quote, fee, path, and pool-price calls to
+Horizon. It is status-safe for non-JSON bodies:
+
+- Non-2xx responses are read as text (JSON details such as `detail`, `message`,
+  or `error` are preferred when present), whitespace-normalised, and bounded.
+  The thrown `BadRequestException` message always starts with
+  `Horizon error (<upstream status>):` and the exception carries the numeric
+  `upstreamStatus` for logging or diagnostics.
+- When the body cannot be read, `statusText` (then `HTTP <status>`) is used, so
+  an unreadable or HTML/plain-text body never discards the status.
+- A successful response whose body is not JSON produces a
+  `BadRequestException` with `Horizon returned a non-JSON response (HTTP <status>)`
+  instead of a context-free `SyntaxError`.
+
+This keeps the existing public contract: the simulator/order book routes still
+return HTTP 400 for upstream Horizon failures, and the web client continues to
+display the existing error envelope. No request, response, or UI shape changes.
+
 ---
 
 ## 5. Security & Operational Boundaries
