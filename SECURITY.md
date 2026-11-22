@@ -63,6 +63,7 @@ The following security headers are set on all responses:
 
 ### Supply Chain & Dependency Security
 
+- **CodeQL Static Analysis (SAST)**: GitHub CodeQL scans all JavaScript and TypeScript source files (`apps/**`, `scripts/**`) on every push and pull request to `main`, and on a weekly schedule. The `security-and-quality` query suite covers CWE-mapped vulnerability classes including injection, XSS, SSRF, path traversal, and prototype pollution. Results are uploaded to the GitHub Security tab and saved as a SARIF workflow artifact. See [CodeQL Documentation](docs/codeql.md).
 - **Dependency Review Enforcement**: Automated pull request gating in GitHub Actions (`.github/workflows/dependency-review.yml`) powered by `actions/dependency-review-action@v4`. Every PR targeting `main` is scanned for newly introduced or upgraded vulnerable dependencies (blocking at `moderate`, `high`, or `critical` severity) and non-compliant or restrictive viral copyleft licenses (e.g. AGPL-3.0, GPL-3.0). See [Dependency Review Documentation](docs/dependency-review.md).
 - **SBOM Generation**: Automated CycloneDX Software Bill of Materials (SBOM) generation during builds.
 - **Local Review & Audit**: Contributors can run `npm run review:deps` and `npm audit` to validate dependency review configuration and package compliance locally before opening pull requests.

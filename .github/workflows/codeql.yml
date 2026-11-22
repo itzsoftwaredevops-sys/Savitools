@@ -1,0 +1,97 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**/*.ts'
+      - 'apps/**/*.tsx'
+      - 'apps/**/*.js'
+      - 'apps/**/*.jsx'
+      - 'scripts/**/*.js'
+      - 'scripts/**/*.mjs'
+      - '.github/workflows/codeql.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/**/*.ts'
+      - 'apps/**/*.tsx'
+      - 'apps/**/*.js'
+      - 'apps/**/*.jsx'
+      - 'scripts/**/*.js'
+      - 'scripts/**/*.mjs'
+      - '.github/workflows/codeql.yml'
+  schedule:
+    # 02:17 UTC every Monday — avoids the top-of-hour GitHub Actions surge
+    - cron: '17 2 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Required to upload SARIF results to the Security tab
+      security-events: write
+      # Required to fetch the repository
+      contents: read
+      # Required to identify the PR that triggered the workflow
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          # Use the extended security-and-quality suite so the scan covers
+          # both CWE-mapped security queries and additional quality checks.
+          # Switch to 'security-extended' to drop the quality queries and
+          # reduce noise if that becomes a problem.
+          queries: security-and-quality
+          # Exclude generated build output, test fixtures, and third-party
+          # code from the analysis. Node modules are excluded by default;
+          # these paths add project-specific build artefacts.
+          config: |
+            paths-ignore:
+              - '**/node_modules/**'
+              - '**/dist/**'
+              - '**/.next/**'
+              - '**/coverage/**'
+              - '**/__mocks__/**'
+
+      # CodeQL's JavaScript/TypeScript extractor does not need a build step —
+      # it analyses source files directly. We still install dependencies so
+      # that the extractor can resolve module graphs and type information,
+      # which improves query accuracy (e.g. taint tracking across imports).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:javascript-typescript'
+          # Upload SARIF to GitHub Advanced Security and also save a copy as a
+          # workflow artifact so results are accessible without Advanced
+          # Security being enabled on the repository.
+          upload: always
+          output: codeql-results
+
+      - name: Upload SARIF as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-sarif
+          path: codeql-results/*.sarif
+          if-no-files-found: warn
+          retention-days: 30
