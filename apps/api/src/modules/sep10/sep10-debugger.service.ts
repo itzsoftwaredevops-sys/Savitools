@@ -5,6 +5,7 @@ import { ChallengeRequestDto } from './dto/challenge-request.dto';
 import { ValidateChallengeDto } from './dto/validate-challenge.dto';
 import { SignChallengeDto } from './dto/sign-challenge.dto';
 import { TokenExchangeDto } from './dto/token-exchange.dto';
+import { redactHeaders } from '../../common/redaction';
 
 export interface ValidationCheck {
   name: string;
@@ -105,12 +106,12 @@ export class Sep10DebuggerService {
         request: {
           method: 'GET',
           url: challengeRequestUrl,
-          headers: this.redactSensitiveHeaders({ Accept: 'application/json' }),
+          headers: redactHeaders({ Accept: 'application/json' }),
         },
         response: {
           status: challengeResponse.status,
           statusText: challengeResponse.statusText,
-          headers: this.redactSensitiveHeaders(challengeResponse.headers),
+          headers: redactHeaders(challengeResponse.headers),
           body: challengeResponse.data,
           timing: Date.now() - startTime,
         },
@@ -137,12 +138,12 @@ export class Sep10DebuggerService {
           request: {
             method: axiosError.config?.method?.toUpperCase() || 'GET',
             url: axiosError.config?.url || '',
-            headers: this.redactSensitiveHeaders(axiosError.config?.headers || {}),
+            headers: redactHeaders(axiosError.config?.headers || {}),
           },
           response: {
             status: axiosError.response?.status || 0,
             statusText: axiosError.response?.statusText || 'Network Error',
-            headers: this.redactSensitiveHeaders(axiosError.response?.headers || {}),
+            headers: redactHeaders(axiosError.response?.headers || {}),
             body: axiosError.response?.data,
             timing: Date.now() - startTime,
           },
@@ -259,13 +260,13 @@ export class Sep10DebuggerService {
         request: {
           method: 'POST',
           url: webAuthEndpoint,
-          headers: this.redactSensitiveHeaders({ 'Content-Type': 'application/json' }),
+          headers: redactHeaders({ 'Content-Type': 'application/json' }),
           body: { transaction: '[REDACTED_XDR]' },
         },
         response: {
           status: tokenResponse.status,
           statusText: tokenResponse.statusText,
-          headers: this.redactSensitiveHeaders(tokenResponse.headers),
+          headers: redactHeaders(tokenResponse.headers),
           body: tokenResponse.data,
           timing: Date.now() - startTime,
         },
@@ -306,13 +307,13 @@ export class Sep10DebuggerService {
           request: {
             method: 'POST',
             url: axiosError.config?.url || '',
-            headers: this.redactSensitiveHeaders(axiosError.config?.headers || {}),
+            headers: redactHeaders(axiosError.config?.headers || {}),
             body: { transaction: '[REDACTED_XDR]' },
           },
           response: {
             status: axiosError.response?.status || 0,
             statusText: axiosError.response?.statusText || 'Network Error',
-            headers: this.redactSensitiveHeaders(axiosError.response?.headers || {}),
+            headers: redactHeaders(axiosError.response?.headers || {}),
             body: axiosError.response?.data,
             timing: Date.now() - startTime,
           },
@@ -561,18 +562,4 @@ export class Sep10DebuggerService {
     return null;
   }
 
-  private redactSensitiveHeaders(headers: any): Record<string, string> {
-    const redacted: Record<string, string> = {};
-    const sensitiveHeaders = ['authorization', 'x-api-key', 'cookie', 'set-cookie'];
-
-    for (const [key, value] of Object.entries(headers)) {
-      if (sensitiveHeaders.includes(key.toLowerCase())) {
-        redacted[key] = '[REDACTED]';
-      } else {
-        redacted[key] = String(value);
-      }
-    }
-
-    return redacted;
-  }
 }

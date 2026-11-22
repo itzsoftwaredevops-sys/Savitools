@@ -119,6 +119,66 @@ describe('Sep10DebuggerService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('redacts authorization header from request diagnostics', async () => {
+      const stellarToml = `WEB_AUTH_ENDPOINT="https://anchor.example.com/auth"`;
+      const challengeTransaction = createValidChallenge(serverKeypair, clientKeypair.publicKey());
+
+      mockedAxios.get
+        .mockResolvedValueOnce({
+          status: 200,
+          statusText: 'OK',
+          data: stellarToml,
+          // Response carries a sensitive header that should be redacted
+          headers: { authorization: 'Bearer anchor-internal-token' },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          statusText: 'OK',
+          data: { transaction: challengeTransaction.toEnvelope().toXDR('base64') },
+          headers: { authorization: 'Bearer challenge-token', 'content-type': 'application/json' },
+        });
+
+      const result = await service.fetchChallenge({
+        domain: 'https://anchor.example.com',
+        account: clientKeypair.publicKey(),
+        network: 'testnet',
+      });
+
+      // The raw token must not appear anywhere in the diagnostics
+      const diagnosticsJson = JSON.stringify(result.httpDiagnostics);
+      expect(diagnosticsJson).not.toContain('Bearer anchor-internal-token');
+      expect(diagnosticsJson).not.toContain('Bearer challenge-token');
+      expect(result.httpDiagnostics.response.headers['authorization']).toBe('[REDACTED]');
+    });
+
+    it('redacts proxy-authorization from response diagnostics', async () => {
+      const stellarToml = `WEB_AUTH_ENDPOINT="https://anchor.example.com/auth"`;
+      const challengeTransaction = createValidChallenge(serverKeypair, clientKeypair.publicKey());
+
+      mockedAxios.get
+        .mockResolvedValueOnce({
+          status: 200,
+          statusText: 'OK',
+          data: stellarToml,
+          headers: {},
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          statusText: 'OK',
+          data: { transaction: challengeTransaction.toEnvelope().toXDR('base64') },
+          headers: { 'proxy-authorization': 'Basic dXNlcjpwYXNz' },
+        });
+
+      const result = await service.fetchChallenge({
+        domain: 'https://anchor.example.com',
+        account: clientKeypair.publicKey(),
+        network: 'testnet',
+      });
+
+      expect(result.httpDiagnostics.response.headers['proxy-authorization']).toBe('[REDACTED]');
+      expect(JSON.stringify(result.httpDiagnostics)).not.toContain('dXNlcjpwYXNz');
+    });
   });
 
   describe('validateChallenge', () => {

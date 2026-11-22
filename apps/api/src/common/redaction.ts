@@ -40,6 +40,7 @@ export const SENSITIVE_KEY_PATTERNS = [
   /private/i,
   /password/i,
   /authorization/i,
+  /proxy-authorization/i,
   /credential/i,
   /cookie/i,
 ];
@@ -106,11 +107,11 @@ export function redactValue(value: unknown, keyHint?: string): unknown {
   return value;
 }
 
-/** Redact sensitive keys from a headers object. */
-export function redactHeaders(headers: Record<string, string>): Record<string, string> {
+/** Redact sensitive keys from a headers object. Coerces values to strings. */
+export function redactHeaders(headers: Record<string, unknown>): Record<string, string> {
   const redacted: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
-    redacted[key] = isSensitiveKey(key) ? REDACTED : value;
+    redacted[key] = isSensitiveKey(key) ? REDACTED : String(value);
   }
   return redacted;
 }

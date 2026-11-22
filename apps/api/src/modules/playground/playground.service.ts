@@ -26,6 +26,7 @@ import {
   MAX_SAFE_REDIRECTS,
 } from '../../common/ssrf-guard';
 import { EncryptionService, ENCRYPTION_PURPOSES } from '../../common/encryption.service';
+import { redactHeaders } from '../../common/redaction';
 
 interface CachedSpec {
   spec: Record<string, unknown>;
@@ -508,14 +509,7 @@ export class PlaygroundService {
     try {
       const scrubHeaders = (headers: Record<string, string> | null | undefined) => {
         if (!headers) return null;
-        const safe = { ...headers };
-        const sensitive = ['authorization', 'cookie', 'set-cookie'];
-        for (const key of Object.keys(safe)) {
-          if (sensitive.includes(key.toLowerCase())) {
-            safe[key] = '[REDACTED]';
-          }
-        }
-        return safe;
+        return redactHeaders(headers);
       };
 
       const entry = this.historyRepository.create({
