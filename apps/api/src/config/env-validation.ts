@@ -177,6 +177,23 @@ export function collectConfigurationErrors(
     errors.push('RESEND_FROM_EMAIL is required when RESEND_API_KEY is set');
   }
 
+  // ─── CSP reporting ────────────────────────────────────────────────────────
+  // When report-only mode is enabled in production the browser posts violations
+  // to the absolute URL built from API_PUBLIC_URL.  Require it to be an HTTPS
+  // URL in production so report payloads are not sent over plain HTTP.
+  const cspReportOnly = get('CSP_REPORT_ONLY');
+  if (cspReportOnly && cspReportOnly !== 'false' && cspReportOnly !== 'true') {
+    errors.push('CSP_REPORT_ONLY must be "true" or "false"');
+  }
+  if (isProduction && cspReportOnly === 'true') {
+    const apiPublicUrl = get('API_PUBLIC_URL');
+    if (!apiPublicUrl) {
+      errors.push('API_PUBLIC_URL is required when CSP_REPORT_ONLY is "true" in production');
+    } else if (isHttpUrl(apiPublicUrl) && !isLoopbackOrigin(apiPublicUrl)) {
+      errors.push('API_PUBLIC_URL must use HTTPS in production');
+    }
+  }
+
   const fluxaClientId = get('FLUXA_CLIENT_ID');
   if (fluxaClientId) {
     if (!get('FLUXA_CLIENT_SECRET')) {

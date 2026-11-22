@@ -29,6 +29,23 @@ const STRICT_CSP =
 const SWAGGER_CSP =
   "default-src 'self';style-src 'self' 'unsafe-inline';script-src 'self' 'unsafe-inline';img-src 'self' data: validator.swagger.io;font-src 'self' data:";
 
+/**
+ * Builds the `Content-Security-Policy-Report-Only` header value used in
+ * production.  When `CSP_REPORT_ONLY` is set to `"false"` (or absent),
+ * report-only mode is disabled and the function returns null.
+ *
+ * The report-only policy intentionally mirrors the enforced STRICT_CSP so that
+ * any directive tightening under consideration can be validated against real
+ * traffic without immediately breaking clients.
+ */
+function buildReportOnlyCsp(
+  reportOnlyEnv: string | undefined,
+  reportUri: string,
+): string | null {
+  if (reportOnlyEnv === 'false' || !reportOnlyEnv) return null;
+  return `${STRICT_CSP};report-to csp-endpoint;report-uri ${reportUri}`;
+}
+
 async function bootstrap() {
   // trustProxy must be set at adapter construction — Fastify does not allow
   // changing it after the server is created (Savitura/Savitools#419).
@@ -66,6 +83,22 @@ async function bootstrap() {
   const docsPath = `/${prefix}/docs`;
   /* eslint-disable @typescript-eslint/no-explicit-any -- Fastify onSend hook typing */
   const fastifyForHeaders = app.getHttpAdapter().getInstance() as any;
+
+  // Build the absolute report endpoint URL.  The API_PUBLIC_URL env var is the
+  // canonical origin browsers can reach (required in production when
+  // CSP_REPORT_ONLY is enabled); in other environments we fall back to
+  // constructing a localhost URL so local testing still works.
+  const reportOnlyEnv = config.get<string>('CSP_REPORT_ONLY');
+  const apiPublicUrl = config.get<string>(
+    'API_PUBLIC_URL',
+    `http://localhost:${port}`,
+  ).replace(/\/$/, '');
+  const reportUri = `${apiPublicUrl}/${prefix}/v1/csp-report`;
+  const reportOnlyCsp = buildReportOnlyCsp(reportOnlyEnv, reportUri);
+
+  // Reporting-Endpoints group name referenced by the `report-to` CSP directive.
+  const reportingEndpointsHeader = `csp-endpoint="${reportUri}"`;
+
   fastifyForHeaders.addHook(
     'onSend',
     async (request: any, reply: any, payload: unknown) => {
@@ -78,6 +111,10 @@ async function bootstrap() {
           'Content-Security-Policy',
           isDocs ? SWAGGER_CSP : STRICT_CSP,
         );
+      }
+      if (reportOnlyCsp && !reply.getHeader('content-security-policy-report-only')) {
+        reply.header('Content-Security-Policy-Report-Only', reportOnlyCsp);
+        reply.header('Reporting-Endpoints', reportingEndpointsHeader);
       }
       return payload;
     },

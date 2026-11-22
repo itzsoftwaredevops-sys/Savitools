@@ -17,6 +17,7 @@ const REQUIRED_HEADERS = [
   'permissions-policy',
   'strict-transport-security',
   'x-dns-prefetch-control',
+  'reporting-endpoints',
 ] as const;
 
 const FORBIDDEN_HEADERS = ['x-powered-by'] as const;
@@ -115,5 +116,41 @@ describe('Security Headers', () => {
 
     expect(config.poweredByHeader).toBe(false);
     expect(await loadHeaders()).not.toHaveProperty('x-powered-by');
+  });
+
+  it('sets Reporting-Endpoints to the CSP report endpoint', async () => {
+    const headers = await loadHeaders();
+
+    expect(headers['reporting-endpoints']).toMatch(/csp-endpoint="[^"]+\/api\/v1\/csp-report"/);
+  });
+
+  it('includes report-to and report-uri directives in the enforced CSP', async () => {
+    const csp = (await loadHeaders())['content-security-policy'];
+
+    expect(csp).toContain('report-to csp-endpoint');
+    expect(csp).toContain('report-uri ');
+    expect(csp).toMatch(/report-uri [^\s;]+\/api\/v1\/csp-report/);
+  });
+
+  it('adds Content-Security-Policy-Report-Only only in production', async () => {
+    const devHeaders = await loadHeaders('development');
+    expect(devHeaders).not.toHaveProperty('content-security-policy-report-only');
+
+    const prodHeaders = await loadHeaders('production');
+    expect(prodHeaders).toHaveProperty('content-security-policy-report-only');
+  });
+
+  it('report-only policy omits unsafe-inline and unsafe-eval', async () => {
+    const reportOnly = (await loadHeaders('production'))['content-security-policy-report-only'];
+
+    expect(reportOnly).not.toContain("'unsafe-inline'");
+    expect(reportOnly).not.toContain("'unsafe-eval'");
+  });
+
+  it('report-only policy carries report-to and report-uri directives', async () => {
+    const reportOnly = (await loadHeaders('production'))['content-security-policy-report-only'];
+
+    expect(reportOnly).toContain('report-to csp-endpoint');
+    expect(reportOnly).toMatch(/report-uri [^\s;]+\/api\/v1\/csp-report/);
   });
 });

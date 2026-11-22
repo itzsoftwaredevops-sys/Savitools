@@ -32,6 +32,7 @@ import { LiquidityPoolsModule } from "./modules/liquidity-pools/liquidity-pools.
 import { LedgerCloseModule } from "./modules/ledger-close/ledger-close.module";
 import { MultisigModule } from "./modules/multisig/multisig.module";
 import { Sep24Module } from "./modules/sep24/sep24.module";
+import { CspReportModule } from "./modules/csp-report/csp-report.module";
 import { DataSource } from "typeorm";
 import { ALL_ENTITIES, ALL_MIGRATIONS } from "./database/database.registry";
 import { validateEnvironment } from "./config/env-validation";
@@ -106,6 +107,7 @@ ThrottlerModule.forRootAsync({
     LedgerCloseModule,
     MultisigModule,
     Sep24Module,
+    CspReportModule,
   ],
   controllers: [AppController],
   providers: [
