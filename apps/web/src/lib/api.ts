@@ -208,14 +208,19 @@ export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Prom
   }
 
   try {
+    const headers = new Headers(requestInit.headers);
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    if (!headers.has('x-request-id')) {
+      headers.set('x-request-id', globalThis.crypto.randomUUID());
+    }
+
     const response = await fetch(`${API_URL}/v1${path}`, {
       ...requestInit,
       credentials: 'include',
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(requestInit.headers ?? {}),
-      },
+      headers,
     });
 
     return await parseJson<T>(response);

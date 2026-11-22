@@ -92,7 +92,7 @@ describe('ApiExceptionFilter', () => {
       error: 'Not Found',
       path: '/api/v1/x',
       timestamp: new Date().toISOString(),
-      requestId: null,
+      requestId: 'req-404',
     };
     expect(errorEnvelope.statusCode).toBe(404);
   });
@@ -123,6 +123,37 @@ describe('ApiExceptionFilter', () => {
 
     const [envelope] = reply.send.mock.calls[0] as [ApiErrorEnvelope];
     expect(envelope.requestId).toBe('from-client');
+    expect(reply.header).toHaveBeenCalledWith(REQUEST_ID_HEADER, 'from-client');
+  });
+
+  it('generates an id for an unmatched request without a caller header', () => {
+    const { host, reply } = hostFor({
+      url: '/api/v1/missing',
+      method: 'GET',
+      headers: {},
+    });
+
+    new ApiExceptionFilter().catch(new NotFoundException(), host);
+
+    const [envelope] = reply.send.mock.calls[0] as [ApiErrorEnvelope];
+    expect(envelope.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(reply.header).toHaveBeenCalledWith(REQUEST_ID_HEADER, envelope.requestId);
+  });
+
+  it('replaces an unsafe caller-supplied id on an unmatched request', () => {
+    const { host, reply } = hostFor({
+      url: '/api/v1/missing',
+      method: 'GET',
+      headers: { [REQUEST_ID_HEADER]: 'bad\r\nid' },
+    });
+
+    new ApiExceptionFilter().catch(new NotFoundException(), host);
+
+    const [envelope] = reply.send.mock.calls[0] as [ApiErrorEnvelope];
+    expect(envelope.requestId).not.toContain('\r');
+    expect(envelope.requestId).not.toContain('\n');
+    expect(envelope.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(reply.header).toHaveBeenCalledWith(REQUEST_ID_HEADER, envelope.requestId);
   });
 
   it('keeps Nest WebSocket handling for a non-HTTP context', () => {

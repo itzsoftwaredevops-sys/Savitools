@@ -20,6 +20,7 @@ import { parseTrustProxy } from "./config/trust-proxy";
 import { parseWebOrigins } from "./config/web-origins";
 import { VALIDATION_PIPE_OPTIONS } from "./config/validation-pipe.config";
 import { WebSocketCorsAdapter } from "./config/websocket-cors.adapter";
+import { REQUEST_ID_HEADER } from "./common/interceptors/request-id.interceptor";
 
 /** Strict CSP for JSON/API responses. */
 const STRICT_CSP =
@@ -128,6 +129,7 @@ async function bootstrap() {
   app.enableCors({
     origin: webOrigins,
     credentials: true,
+    exposedHeaders: [REQUEST_ID_HEADER],
   });
   app.useWebSocketAdapter(new WebSocketCorsAdapter(app, webOrigins));
 

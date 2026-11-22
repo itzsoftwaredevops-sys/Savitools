@@ -14,6 +14,14 @@ export const REQUEST_ID_HEADER = 'x-request-id';
 /** Longest caller-supplied correlation id accepted; longer values are replaced. */
 export const REQUEST_ID_MAX_LENGTH = 128;
 
+export function isValidRequestId(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= REQUEST_ID_MAX_LENGTH &&
+    /^[A-Za-z0-9._:-]+$/.test(value)
+  );
+}
+
 export interface RequestWithRequestId extends FastifyRequest {
   requestId?: string;
 }
@@ -51,8 +59,6 @@ export class RequestIdInterceptor implements NestInterceptor {
     const header = request.headers?.[REQUEST_ID_HEADER];
     const value = Array.isArray(header) ? header[0] : header;
     const trimmed = typeof value === 'string' ? value.trim() : '';
-    return trimmed.length > 0 && trimmed.length <= REQUEST_ID_MAX_LENGTH
-      ? trimmed
-      : undefined;
+    return isValidRequestId(trimmed) ? trimmed : undefined;
   }
 }

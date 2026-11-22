@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import {
   ArgumentsHost,
   Catch,
@@ -8,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import {
+  isValidRequestId,
   REQUEST_ID_HEADER,
   RequestWithRequestId,
 } from '../interceptors/request-id.interceptor';
@@ -20,7 +22,7 @@ export interface ApiErrorEnvelope {
   code?: string;
   path: string;
   timestamp: string;
-  requestId: string | null;
+  requestId: string;
   /** Opaque details safe for client consumption (no secrets, PII, or raw XDR). */
   details?: Record<string, unknown>;
 }
@@ -72,9 +74,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const requestId = this.resolveRequestId(request);
-    if (requestId) {
-      response.header(REQUEST_ID_HEADER, requestId);
-    }
+    response.header(REQUEST_ID_HEADER, requestId);
 
     const detail = this.describe(exception, status);
     const envelope: ApiErrorEnvelope = {
@@ -90,7 +90,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${request.method ?? ''} ${request.url ?? ''} -> ${status}`,
+        `${request.method ?? ''} ${request.url ?? ''} -> ${status} requestId=${requestId}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
     }
@@ -136,15 +136,18 @@ export class ApiExceptionFilter implements ExceptionFilter {
    * request with no matching route (a 404, where no interceptor ran) still
    * carries the correlation the client supplied.
    */
-  private resolveRequestId(request: RequestWithRequestId): string | null {
-    if (typeof request.requestId === 'string' && request.requestId.length > 0) {
+  private resolveRequestId(request: RequestWithRequestId): string {
+    if (
+      typeof request.requestId === 'string' &&
+      isValidRequestId(request.requestId)
+    ) {
       return request.requestId;
     }
 
     const header = request.headers?.[REQUEST_ID_HEADER];
     const value = Array.isArray(header) ? header[0] : header;
     const trimmed = typeof value === 'string' ? value.trim() : '';
-    return trimmed.length > 0 ? trimmed : null;
+    return isValidRequestId(trimmed) ? trimmed : randomUUID();
   }
 
   /** `INTERNAL_SERVER_ERROR` -> `Internal Server Error`, matching Nest defaults. */

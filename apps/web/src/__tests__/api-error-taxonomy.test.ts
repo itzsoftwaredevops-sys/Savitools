@@ -34,6 +34,23 @@ describe('API error taxonomy', () => {
     });
   });
 
+  it('sends a generated request id and preserves a caller-provided id', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await apiFetch('/correlated');
+
+    const [, generatedInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const generatedId = new Headers(generatedInit.headers).get('x-request-id');
+    expect(generatedId).toMatch(/^[0-9a-f-]{36}$/);
+
+    await apiFetch('/correlated', {
+      headers: { 'x-request-id': 'trace-from-caller' },
+    });
+
+    const [, suppliedInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(new Headers(suppliedInit.headers).get('x-request-id')).toBe('trace-from-caller');
+  });
+
   it('classifies timeouts from the request deadline', async () => {
     fetchMock.mockImplementation(
       (_url: string, init: RequestInit) =>

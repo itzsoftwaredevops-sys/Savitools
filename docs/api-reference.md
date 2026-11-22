@@ -16,6 +16,12 @@ The API uses URI-based versioning. All endpoints are prefixed with `/v1` (or the
 
 Example: `GET /api/v1/health`
 
+## Error Responses and Correlation IDs
+
+API errors use a consistent JSON envelope containing `statusCode`, `message`, `error`, `path`, `timestamp`, and `requestId`; optional machine-readable `code` and safe `details` may also be present. The `requestId` is also returned in the `x-request-id` response header. Existing status, `message`, and `error` fields are unchanged. Successful response bodies are not wrapped by this contract.
+
+The web client sends a UUID in `x-request-id` for each API request. Other clients may provide their own ID of up to 128 ASCII letters, digits, periods, underscores, colons, or hyphens; invalid values are replaced with a generated UUID. The API returns that effective ID in every error envelope, including unknown-route errors, and logs it with server errors so support can correlate a report with server logs. Treat IDs as opaque diagnostic metadata, not as credentials; do not put personal or secret data in them.
+
 ## Authentication
 
 ### Public vs Protected Endpoints
